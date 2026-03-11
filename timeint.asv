@@ -1,0 +1,67 @@
+function [parm, flow] = timeint(parm, flow)
+
+% timintegration follows here
+plot_interval = 200;
+time_history = zeros(1, parm.ntst);
+u_center_history = zeros(1, parm.ntst);
+v_center_history = zeros(1, parm.ntst);
+%u_abs_history = zeros(1, parm.ntst);
+figure;
+% loop over timesteps
+for itst = 1 : parm.ntst
+
+    disp(['time step ', num2str(itst)]);
+
+    % compute right hand side of Navier-Stokes
+    % (note: pressure gradient term is practically neglected)
+    [flow.rhsu, flow.rhsv] = rhs_ns(parm, flow);
+
+    % compute provisional velocity field
+    % (note: flow.u and flow.v are updated)
+    [flow] = runge_kutta_2d_vec(parm, flow);
+
+    % compute pressure difference (dp) field based on the
+    % provisional velocity
+    [flow] = direct_press_corr(parm, flow);
+
+    % finally correct the velocity field by projection
+    % (note: pressure field is also updated)
+    [flow] = project(parm, flow);
+
+    % check if the updated velocity fields are indeed
+    % divergence-free
+    [flow] = div_cal(parm, flow);
+    fprintf('DEBUG: max div of final vel. is %e\n', div_check(flow));
+
+    %Plot the velocity at the center of the channel as a function of time.
+    time_history(itst) = itst * parm.dt;
+    u_center_history(itst) = flow.u(round(end/2), round(end/2));
+    v_center_history(itst) = flow.v(round(end/2), round(end/2));
+    %u_abs_history(itst) = sqrt(u_center_history(itst)^2 + v_center_history(itst)^2);
+    if mod(itst, plot_interval) == 0 || itst == parm.ntst
+        visualize_velocity(time_history,u_center_history,v_center_history,itst);
+    end
+end
+
+function visualize_velocity(time_history, u_center_history, v_center_history, itst, parm, plot_interval)
+if mod(itst, plot_interval) == 0 || itst == parm.ntst
+    % Plot the u-velocity vs. time history up to the current step
+    plot(time_history(1:itst), u_center_history(1:itst), 'r-o', 'DisplayName', 'u at center');
+    hold on;
+
+    % Plot the v-velocity vs. time history up to the current step
+    plot(time_history(1:itst), v_center_history(1:itst), 'b--x', 'DisplayName', 'v at center');
+    hold off;
+
+    % Configure plot aesthetics
+    grid on;
+    xlabel('Time (s)');
+    ylabel('Velocity');
+    title(['Velocity at Flow Center vs. Time (Step: ', num2str(itst), ')']);
+    legend('show', 'Location', 'best');
+    
+    % Force MATLAB to draw the plot immediately
+    drawnow;
+end
+
+end

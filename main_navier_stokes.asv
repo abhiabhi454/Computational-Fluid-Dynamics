@@ -1,0 +1,178 @@
+%**************************************************************************
+% CFD Lab Summer Semester 2018, Assignment 8
+%
+% This code solves the 2D unsteady Navier-Stokes equation 
+%
+% For spatial discretisation a central difference scheme is used
+% and for time integration a Runge-Kutta method is implemented.
+%
+% Two cases "Channel" and "Shear" are defined.
+%
+% authors: D.Quosdorf & Y.Sakai
+% june, 2018
+%**************************************************************************
+
+
+
+% close figures, command window and clear memory
+close all; clc; clear
+
+% --- Start of Custom Parameter Setup ---
+% This block handles user interaction for setting simulation parameters.
+
+manual_mode = false; % Flag to indicate if parameters are set manually
+
+while true
+    fprintf('\n--- Simulation Setup Menu ---\n');
+    fprintf('1. Input data from a file\n');
+    fprintf('2. Input data manually\n');
+    fprintf('3. Exit\n');
+    
+    main_choice_str = input('Select an option: ', 's');
+    main_choice = str2double(main_choice_str);
+
+    % Handle non-numeric input for the main menu
+    if isnan(main_choice)
+        if strcmpi(main_choice_str, 'exit') || strcmpi(main_choice_str, 'quit')
+            main_choice = 3;
+        else
+            fprintf('Invalid input. Please enter 1, 2, or 3.\n');
+            continue;
+        end
+    end
+
+    switch main_choice
+        case 1 % Load from file
+            while true
+                fprintf('\n--- Select Input File ---\n');
+                fprintf('1. infile_shear.mat\n');
+                fprintf('2. infile_channel.mat\n');
+                file_choice = input('Select a file: ');
+                if file_choice == 1
+                    infilename = 'infile_shear.mat';
+                    break;
+                elseif file_choice == 2
+                    infilename = 'infile_channel.mat';
+                    break;
+                else
+                    fprintf('Invalid selection. Please choose 1 or 2.\n');
+                end
+            end
+            break; % Exit the main while loop
+
+        case 2 % Input manually
+            manual_mode = true;
+            break; 
+
+        case 3 % Exit
+            fprintf('Exiting program.\n');
+            return; % Exit the entire script
+
+        otherwise
+            fprintf('Invalid option. Please choose 1, 2, or 3.\n');
+    end
+end
+
+% --- End of Custom Parameter Setup ---
+
+
+% build structures 'parm' and 'flow'
+[parm, flow] = build_structs;
+fprintf('struct built\n')
+
+% This section now handles both manual and file-based parameter setting
+if manual_mode
+    fprintf('\n--- Setting Parameters Manually ---\n');
+    % Define some base values for prompts
+    parm.flowtype = 'SHEAR';
+    parm.m = 31; parm.n = 31; parm.ntst = 4000;
+    parm.dt = 1.0e-3; parm.nu = 0.01; parm.rho = 1;
+    parm.xl = 2*pi; parm.yl = 2*pi;
+
+    % Sequentially set each parameter
+    val = input(sprintf('Set flowtype (SHEAR and CHANNEL)'),'s');
+    if ~isempty(val), parm.flowtype = upper(val); end
+    
+    val = input(sprintf('Set m (%d): ', parm.m));
+    if ~isempty(val), parm.m = floor(abs(val)); end
+
+    val = input(sprintf('Set n (%d): ', parm.n));
+    if ~isempty(val), parm.n = floor(abs(val)); end
+
+    val = input(sprintf('Set ntst (%d): ', parm.ntst));
+    if ~isempty(val), parm.ntst = floor(abs(val)); end
+
+    val = input(sprintf('Set dt (%.4f): ', parm.dt));
+    if ~isempty(val), parm.dt = abs(val); end
+
+    val = input(sprintf('Set nu (%.4f): ', parm.nu));
+    if ~isempty(val), parm.nu = abs(val); end
+
+    val = input(sprintf('Set rho (%.1f): ', parm.rho));
+    if ~isempty(val), parm.rho = abs(val); end
+
+    val = input(sprintf('Set xl (%.4f): ', parm.xl));
+    if ~isempty(val), parm.xl = abs(val); end
+
+    val = input(sprintf('Set yl (%.4f): ', parm.yl));
+    if ~isempty(val), parm.yl = abs(val); end
+
+else
+    % Original behavior: load from the selected infilename
+    fprintf('infilename is: %s\n', infilename)
+    [parm, flow] = set_params(parm, flow, infilename);
+    fprintf('parameters set\n')
+
+    % Ask user if they want to modify the loaded parameters
+    while true
+        fprintf('\n--- Modify Loaded Data? ---\n');
+        fprintf('1. Change data manually\n');
+        fprintf('2. Keep default data and run\n');
+        change_choice = input('Select an option: ');
+        if change_choice == 2
+            break; % Proceed with loaded data
+        elseif change_choice == 1
+            fprintf('\n--- Modifying Loaded Parameters ---\n');
+            
+            % Sequentially set each parameter, showing loaded value as default
+            %val = input(sprintf('Set flowtype (%s): ', parm.flowtype), 's');
+            %if ~isempty(val), parm.flowtype = upper(val); end
+            
+            val = input(sprintf('Set m (%d): ', parm.m));
+            if ~isempty(val), parm.m = floor(abs(val)); end
+        
+            val = input(sprintf('Set n (%d): ', parm.n));
+            if ~isempty(val), parm.n = floor(abs(val)); end
+        
+            val = input(sprintf('Set ntst (%d): ', parm.ntst));
+            if ~isempty(val), parm.ntst = floor(abs(val)); end
+        
+            val = input(sprintf('Set dt (%.4f): ', parm.dt));
+            if ~isempty(val), parm.dt = abs(val); end
+        
+            val = input(sprintf('Set nu (%.4f): ', parm.nu));
+            if ~isempty(val), parm.nu = abs(val); end
+        
+            val = input(sprintf('Set rho (%.1f): ', parm.rho));
+            if ~isempty(val), parm.rho = abs(val); end
+        
+            val = input(sprintf('Set xl (%.4f): ', parm.xl));
+            if ~isempty(val), parm.xl = abs(val); end
+        
+            val = input(sprintf('Set yl (%.4f): ', parm.yl));
+            if ~isempty(val), parm.yl = abs(val); end
+
+            break; % Exit modification loop
+        else
+            fprintf('Invalid selection. Please choose 1 or 2.\n');
+        end
+    end
+end
+
+
+% initialisation of flow field
+[parm, flow] = initialize(parm, flow);
+fprintf('flow field initialised\n')
+
+% start time integration
+[parm, flow] = timeint(parm, flow);
